@@ -102,6 +102,7 @@ class Catalogue:
         self._pages = {}  # page number -> results list
         self._remaining = None
         self._seen_ids = set()
+        self._has_returned_book = False
 
     def _load_first_page(self):
         if self._count is None:
@@ -148,7 +149,20 @@ class Catalogue:
                 if book_id in self._seen_ids:
                     continue
                 self._seen_ids.add(book_id)
+            self._has_returned_book = True
             return book
+
+        if self._has_returned_book:
+            # Keep unfetched pages available for a later retry.
+            usable = []
+            for index in self._remaining:
+                page_number, position = divmod(index, PAGE_SIZE)
+                results = self._pages.get(page_number + 1)
+                if results is None or (
+                    position < len(results) and isinstance(results[position], dict)
+                ):
+                    usable.append(index)
+            self._remaining = usable
 
         if not self._remaining:
             raise CatalogueExhausted
